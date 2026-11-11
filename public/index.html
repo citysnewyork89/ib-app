@@ -1,0 +1,111 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Iberia Publisher</title>
+<style>
+:root{--bg:#1e1f22;--p:#2b2d31;--p2:#313338;--t:#dbdee1;--m:#949ba4;--b:#5865f2}
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif;background:var(--bg);color:var(--t)}
+#app{display:grid;grid-template-columns:minmax(380px,1fr) 1fr;height:100vh}@media(max-width:800px){#app{grid-template-columns:1fr;height:auto}}
+.col{overflow:auto;padding:16px}
+input,select,textarea,button{font:inherit;color:var(--t);background:var(--bg);border:1px solid #3f4147;border-radius:6px;padding:7px 9px;width:100%}
+textarea{min-height:70px;resize:vertical}button{cursor:pointer;width:auto;background:var(--p2)}button.pri{background:var(--b);border:0;padding:10px 18px;font-weight:600}
+.card{background:var(--p);border-radius:8px;padding:12px;margin:10px 0}.row{display:flex;gap:8px;margin:6px 0;align-items:end}.row>*{flex:1}.row>button{flex:0}
+label{display:block;font-size:12px;color:var(--m);margin:6px 0 3px}.h{display:flex;justify-content:space-between;align-items:center;font-weight:600}
+.pv{background:var(--p2);border-radius:8px;padding:14px;max-width:560px}
+.cont{border-left:4px solid var(--b);background:var(--p);border-radius:6px;padding:10px 12px;margin-top:6px}.cont.sp{filter:blur(3px)}
+.emb{border-left:4px solid var(--b);background:var(--p);border-radius:6px;padding:10px 12px;margin-top:6px}
+.pv img{max-width:100%;border-radius:6px}.gal{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:4px;margin:6px 0}
+hr{border:0;border-top:1px solid #4e5058;margin:10px 0}hr.nd{border:0}hr.s2{margin:18px 0}
+.bt{display:inline-block;background:#4e5058;border-radius:4px;padding:6px 14px;margin:4px 4px 0 0}
+.sec{display:flex;gap:10px;justify-content:space-between;align-items:center}.sec img{width:70px}
+.fl{display:flex;flex-wrap:wrap;gap:8px}.fl div{flex:1 1 100%}.fl .in{flex:1 1 30%}
+.mn{margin-top:6px}.mr{background:var(--p);border-radius:6px;padding:8px 10px;margin-top:6px}.card .card{background:var(--p2)}
+#toast{position:fixed;bottom:16px;right:16px;background:var(--p);padding:12px 16px;border-radius:8px;max-width:420px;display:none}
+</style>
+<div id=app><div class=col id=ed></div><div class=col><div class=h style="margin-bottom:10px">Vista previa <button class=pri onclick=send()>Publicar</button></div><div class=pv id=pv></div></div></div><div id=toast></div>
+<script>
+const $=i=>document.getElementById(i);
+let pw=sessionStorage.pw||'',files={},chs=[];
+const S={mode:'v2',fm:'new',th:'',threads:[],emojis:[],ch:'',forum:false,thread:'',tags:[],ping:false,content:'',embeds:[],buttons:[],menus:[],blocks:[{t:'text',content:'# Título\nEscribe aquí tu anuncio'}],box:{on:true,color:'#5865f2',spoiler:false}};
+const P=p=>p.split('.'),get=p=>P(p).reduce((o,k)=>o?.[k],S);
+const set=(p,v)=>{const k=P(p),l=k.pop();k.reduce((o,x)=>o[x],S)[l]=v;pv()};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const md=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/`(.+?)`/g,'<code>$1</code>').replace(/^### (.+)$/gm,'<b>$1</b>').replace(/^## (.+)$/gm,'<h3>$1</h3>').replace(/^# (.+)$/gm,'<h2>$1</h2>').replace(/\n/g,'<br>');
+const U=u=>u?.startsWith('attachment://')?files[u.slice(13)]?.u:u;
+const I=(l,p,t='text')=>`<div><label>${l}</label><input type="${t}" value="${esc(get(p))}" oninput="set('${p}',this.value)"></div>`;
+const T=(l,p)=>`<div><label>${l}</label><textarea oninput="set('${p}',this.value)">${esc(get(p))}</textarea></div>`;
+const C=(l,p)=>`<label style="display:flex;gap:6px;align-items:center"><input type=checkbox style="width:auto" ${get(p)?'checked':''} onchange="set('${p}',this.checked)">${l}</label>`;
+const M=(l,p)=>`<div><label>${l} (URL o subir archivo)</label><div class=row><input value="${esc(get(p))}" oninput="set('${p}',this.value)"><input type=file accept="image/*" style="max-width:120px" onchange="up('${p}',this.files[0])"></div></div>`;
+const up=(p,f)=>{if(!f)return;const n=(Date.now()%1e7)+'_'+f.name.replace(/[^\w.]/g,'_');files[n]={f,u:URL.createObjectURL(f)};set(p,'attachment://'+n);R()};
+const A=(p,v)=>{get(p).push(v);R()},D=(p,i)=>{get(p).splice(i,1);R()},Mv=(p,i,d)=>{const a=get(p),j=i+d;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];R()};
+const hd=(t,p,i)=>`<div class=h>${t}<span><button onclick="Mv('${p}',${i},-1)">↑</button> <button onclick="Mv('${p}',${i},1)">↓</button> <button onclick="D('${p}',${i})">✕</button></span></div>`;
+const btnsUI=p=>get(p).map((b,i)=>`<div class=row>${I('Texto',p+'.'+i+'.label')}${I('URL (https://…)',p+'.'+i+'.url')}${E(p+'.'+i+'.emoji')}<button onclick="D('${p}',${i})">✕</button></div>`).join('')+`<button onclick="A('${p}',{label:'',url:'',emoji:''})">+ Botón de enlace</button>`;
+
+const BN={text:'Texto',sep:'Separador',gal:'Galería',sec:'Sección',btns:'Botones',menu:'Menú desplegable'};
+const newOpt=()=>({label:'',desc:'',emoji:'',r:{content:'',eon:false,et:'',ed:'',ec:'#5865f2',ei:'',eth:'',ef:'',priv:true}});
+const newMenu=()=>({t:'menu',ph:'Elige una opción…',opts:[newOpt()]});
+const menuUI=p=>I('Texto del desplegable (cuando no hay nada elegido)',p+'.ph')+get(p+'.opts').map((o,j)=>{const q=p+'.opts.'+j,r=q+'.r';return`<div class=card>${hd('Opción '+(j+1),p+'.opts',j)}
+<div class=row>${I('Texto',q+'.label')}${I('Descripción corta',q+'.desc')}${E(q+'.emoji')}</div>
+<label>Respuesta del bot al elegir esta opción</label>${T('Mensaje de texto ({user} = menciona a quien elige)',r+'.content')}
+<label style="display:flex;gap:6px;align-items:center"><input type=checkbox style="width:auto" ${o.r.eon?'checked':''} onchange="set('${r}.eon',this.checked);R()">Añadir un embed a la respuesta</label>
+${o.r.eon?`<div class=row>${I('Título',r+'.et')}${I('Color',r+'.ec','color')}</div>${T('Descripción del embed',r+'.ed')}<div class=row>${I('Imagen grande (URL)',r+'.ei')}${I('Miniatura (URL)',r+'.eth')}</div>${I('Pie',r+'.ef')}`:''}
+${C('Respuesta privada (solo la ve quien elige)',r+'.priv')}</div>`}).join('')+(get(p+'.opts').length<25?`<button onclick="A('${p}.opts',newOpt())">+ Opción</button>`:'');
+function embedUI(e,i){const p='embeds.'+i;return`<div class=card>${hd('Embed '+(i+1),'embeds',i)}
+<div class=row>${I('Título',p+'.title')}${I('URL del título',p+'.url')}${I('Color',p+'.color','color')}</div>${T('Descripción',p+'.description')}
+<div class=row>${I('Autor',p+'.an')}${M('Icono autor',p+'.ai')}</div>${M('Imagen grande',p+'.img')}${M('Miniatura',p+'.th')}${I('Pie',p+'.ft')}
+${e.fields.map((f,j)=>`<div class=row>${I('Campo',p+'.fields.'+j+'.name')}${I('Valor',p+'.fields.'+j+'.value')}<div style="flex:0">${C('En línea',p+'.fields.'+j+'.inline')}</div><button onclick="D('${p}.fields',${j})">✕</button></div>`).join('')}
+<button onclick="A('${p}.fields',{name:'',value:'',inline:false})">+ Campo</button></div>`}
+function blockUI(b,i){const p='blocks.'+i;let h='';
+if(b.t=='text')h=T('Texto (markdown: # título, **negrita**, [link](url))',p+'.content');
+if(b.t=='sep')h=`<div class=row><div>${C('Línea visible',p+'.div')}</div><div><label>Espacio</label><select onchange="set('${p}.sp',this.value);R()"><option value=1 ${b.sp==1?'selected':''}>Pequeño</option><option value=2 ${b.sp==2?'selected':''}>Grande</option></select></div></div>`;
+if(b.t=='gal')h=b.items.map((it,j)=>`<div class=row>${M('Imagen',p+'.items.'+j+'.url')}${I('Descripción',p+'.items.'+j+'.d')}<button onclick="D('${p}.items',${j})">✕</button></div>`).join('')+`<button onclick="A('${p}.items',{url:'',d:''})">+ Imagen</button>`;
+if(b.t=='sec')h=T('Texto',p+'.content')+`<label>Accesorio</label><select onchange="set('${p}.acc',this.value);R()"><option value=th ${b.acc=='th'?'selected':''}>Miniatura</option><option value=bt ${b.acc=='bt'?'selected':''}>Botón de enlace</option></select>`+(b.acc=='th'?M('Miniatura',p+'.url'):`<div class=row>${I('Texto botón',p+'.label')}${I('URL',p+'.url')}${E(p+'.emoji')}</div>`);
+if(b.t=='btns')h=btnsUI(p+'.btns');
+if(b.t=='menu')h=menuUI(p);
+return`<div class=card>${hd(BN[b.t],'blocks',i)}${h}</div>`}
+const NB={text:{t:'text',content:''},sep:{t:'sep',div:true,sp:1},gal:{t:'gal',items:[{url:'',d:''}]},sec:{t:'sec',content:'',acc:'th',url:'',label:'',emoji:''},btns:{t:'btns',btns:[{label:'',url:'',emoji:''}]},menu:newMenu()};
+const add=k=>{S.blocks.push(JSON.parse(JSON.stringify(NB[k])));R()};
+const v2UI=()=>`<div class=card><div class=h>Contenedor</div>${C('Envolver todo en un contenedor con color','box.on')}<div class=row>${I('Color lateral','box.color','color')}<div>${C('Spoiler','box.spoiler')}</div></div></div>`+S.blocks.map(blockUI).join('')+`<div class=card><div class=h>Añadir bloque</div><div class=row style="flex-wrap:wrap">${Object.keys(NB).map(k=>`<button onclick="add('${k}')">+ ${BN[k]}</button>`).join('')}</div></div>`;
+const classicUI=()=>T('Mensaje','content')+S.embeds.map(embedUI).join('')+`<button onclick="A('embeds',{title:'',url:'',description:'',color:'#5865f2',an:'',ai:'',img:'',th:'',ft:'',fields:[]})">+ Embed</button><div class=card><div class=h>Botones de enlace</div>${btnsUI('buttons')}</div>`+S.menus.map((m,i)=>`<div class=card>${hd('Menú desplegable '+(i+1),'menus',i)}${menuUI('menus.'+i)}</div>`).join('')+`<button onclick="A('menus',newMenu())">+ Menú desplegable</button>`;
+const pick=async v=>{const c=chs.find(c=>c.id==v);S.ch=v;S.forum=c?.type==15;S.tags=[];S.th='';S.threads=[];R();
+if(S.forum){const r=await fetch('/api/threads/'+v,{headers:{'x-password':pw}});if(r.ok){S.threads=await r.json();R()}}};
+const forumUI=()=>`<label>Qué hacer en el foro</label><select onchange="S.fm=this.value;R()"><option value=new ${S.fm=='new'?'selected':''}>Crear publicación nueva</option><option value=exist ${S.fm=='exist'?'selected':''}>Escribir en una publicación existente</option></select>`+(S.fm=='new'?I('Título de la publicación','thread')+tagsUI():`<label>Publicación</label><select onchange="S.th=this.value;R()"><option value="">— elige publicación —</option>${S.threads.map(t=>`<option value=${t.id} ${t.id==S.th?'selected':''}>${esc(t.name)}</option>`).join('')}</select>${I('…o ID manual de la publicación','th')}`);
+const E=p=>`<div><label>Icono (emoji o del servidor)</label><input list=em value="${esc(get(p))}" oninput="set('${p}',this.value)" placeholder="😀 o elige uno"></div>`;
+const tagsUI=()=>{const c=chs.find(c=>c.id==S.ch);return(c?.tags||[]).length?'<label>Etiquetas</label>'+c.tags.map(t=>`<label style="display:inline-flex;gap:4px;margin-right:10px"><input type=checkbox style="width:auto" ${S.tags.includes(t.id)?'checked':''} onchange="tg('${t.id}')">${esc(t.name)}</label>`).join(''):''};
+const tg=id=>{S.tags=S.tags.includes(id)?S.tags.filter(x=>x!=id):[...S.tags,id]};
+function R(){$('ed').innerHTML=`<div class=card><label>Destino</label><select onchange="pick(this.value)"><option value="">— elige canal o foro —</option>${chs.map(c=>`<option value=${c.id} ${c.id==S.ch?'selected':''}>${c.type==15?'🗂️ foro':'#'} ${esc(c.name)}</option>`).join('')}</select>${I('…o ID manual de canal/hilo existente','ch')}${S.forum?forumUI():''}${C('Permitir menciones (@)','ping')}</div>
+<datalist id=em>${S.emojis.map(e=>`<option value="${esc('<'+(e.animated?'a':'')+':'+e.name+':'+e.id+'>')}">${esc(e.name)}</option>`).join('')}</datalist><div class=card><label>Modo</label><select onchange="S.mode=this.value;R()"><option value=v2 ${S.mode=='v2'?'selected':''}>Componentes V2 (contenedores, separadores, secciones)</option><option value=classic ${S.mode=='classic'?'selected':''}>Clásico (texto + embeds + botones)</option></select></div>${S.mode=='v2'?v2UI():classicUI()}`;pv()}
+
+const col=h=>parseInt((h||'#5865f2').slice(1),16);
+const emo=e=>{const m=/^<(a?):(\w+):(\d+)>$/.exec(e.trim());return m?{id:m[3],name:m[2],animated:!!m[1]}:{name:e.trim()}};
+const btn=b=>({type:2,style:5,url:b.url,...((b.label||!b.emoji)?{label:b.label||'Enlace'}:{}),...(b.emoji?{emoji:emo(b.emoji)}:{})});
+let MENUS=[];
+const mnu=m=>{const o=m.opts.filter(x=>x.label.trim()).slice(0,25);if(!o.length)return null;
+const id='m'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+MENUS.push({id,options:Object.fromEntries(o.map((x,i)=>{const r=x.r;return['o'+i,{content:r.content||'',priv:!!r.priv,embed:r.eon?{title:r.et||undefined,description:r.ed||undefined,color:col(r.ec),image:r.ei?{url:r.ei}:undefined,thumbnail:r.eth?{url:r.eth}:undefined,footer:r.ef?{text:r.ef}:undefined}:null}]}))});
+return{type:1,components:[{type:3,custom_id:id,placeholder:(m.ph||'').slice(0,150)||undefined,min_values:1,max_values:1,options:o.map((x,i)=>({label:x.label.slice(0,100),value:'o'+i,description:x.desc?x.desc.slice(0,100):undefined,...(x.emoji?{emoji:emo(x.emoji)}:{})}))}]}};
+function build(){MENUS=[];const am={allowed_mentions:S.ping?undefined:{parse:[]}};
+if(S.mode=='classic'){const rows=[];for(let i=0;i<S.buttons.length;i+=5)rows.push({type:1,components:S.buttons.slice(i,i+5).map(btn)});
+return{content:S.content,embeds:S.embeds.map(e=>({title:e.title||undefined,url:e.url||undefined,description:e.description||undefined,color:col(e.color),author:e.an?{name:e.an,icon_url:e.ai||undefined}:undefined,footer:e.ft?{text:e.ft}:undefined,image:e.img?{url:e.img}:undefined,thumbnail:e.th?{url:e.th}:undefined,fields:e.fields.filter(f=>f.name&&f.value)})),components:[...rows,...S.menus.map(mnu).filter(Boolean)].slice(0,5),...am}}
+const bl=S.blocks.map(b=>b.t=='text'?{type:10,content:b.content||' '}:b.t=='sep'?{type:14,divider:!!b.div,spacing:+b.sp}:b.t=='gal'?{type:12,items:b.items.filter(i=>i.url).map(i=>({media:{url:i.url},description:i.d||undefined}))}:b.t=='sec'?{type:9,components:[{type:10,content:b.content||' '}],accessory:b.acc=='th'?{type:11,media:{url:b.url}}:btn(b)}:b.t=='menu'?mnu(b):{type:1,components:b.btns.map(btn)}).filter(Boolean);
+return{flags:32768,components:S.box.on?[{type:17,accent_color:col(S.box.color),spoiler:!!S.box.spoiler,components:bl}]:bl,...am}}
+
+const bp=b=>`<span class=bt>${esc(b.emoji||'')} ${esc(b.label||'Enlace')} ↗</span>`;
+const emT=e=>{const m=/^<a?:(\w+):\d+>$/.exec((e||'').trim());return m?':'+m[1]+':':(e||'').trim()};
+const mpv=(m,p)=>`<div class=mn><select onchange="mrep(this,'${p}')"><option value="">${esc(m.ph||'Elige una opción…')}</option>${m.opts.map((o,j)=>`<option value=${j}>${esc((emT(o.emoji)+' '+o.label).trim())}${o.desc?' — '+esc(o.desc):''}</option>`).join('')}</select><div class=mr style="display:none"></div></div>`;
+const mrep=(s,p)=>{const d=s.nextElementSibling;if(s.value===''){d.style.display='none';return}const r=get(p+'.opts')[+s.value].r;d.style.display='block';d.innerHTML=`<small>${r.priv?'👁 Solo lo ve quien elige':'Respuesta pública'}</small><div>${md(r.content)}</div>`+(r.eon?`<div class=emb style="border-color:${r.ec}"><div><b>${esc(r.et)}</b></div><div>${md(r.ed)}</div>${r.eth?`<img src="${esc(r.eth)}" style="width:70px">`:''}${r.ei?`<img src="${esc(r.ei)}">`:''}<small>${esc(r.ef)}</small></div>`:'')};
+function pv(){let h='';
+if(S.mode=='classic')h=`<div>${md(S.content)}</div>`+S.embeds.map(e=>`<div class=emb style="border-color:${e.color}">${e.an?`<small>${esc(e.an)}</small>`:''}<div><b>${esc(e.title)}</b></div><div>${md(e.description)}</div><div class=fl>${e.fields.map(f=>`<div class=in><b>${esc(f.name)}</b><br>${md(f.value)}</div>`).join('')}</div>${e.th?`<img src="${U(e.th)}" style="width:70px">`:''}${e.img?`<img src="${U(e.img)}">`:''}<small>${esc(e.ft)}</small></div>`).join('')+`<div>${S.buttons.map(bp).join('')}</div>`+S.menus.map((m,i)=>mpv(m,'menus.'+i)).join('');
+else{const inner=S.blocks.map((b,bi)=>b.t=='text'?`<div>${md(b.content)}</div>`:b.t=='sep'?`<hr class="${b.div?'':'nd '}${b.sp==2?'s2':''}">`:b.t=='gal'?`<div class=gal>${b.items.filter(i=>i.url).map(i=>`<img src="${U(i.url)}">`).join('')}</div>`:b.t=='sec'?`<div class=sec><div>${md(b.content)}</div>${b.acc=='th'?(b.url?`<img src="${U(b.url)}">`:''):bp(b)}</div>`:b.t=='menu'?mpv(b,'blocks.'+bi):`<div>${b.btns.map(bp).join('')}</div>`).join('');
+h=S.box.on?`<div class="cont ${S.box.spoiler?'sp':''}" style="border-color:${S.box.color}">${inner}</div>`:inner}
+$('pv').innerHTML=h}
+
+const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',6000)};
+async function send(){const ex=S.forum&&S.fm=='exist',ch=ex?S.th:S.ch;if(!ch)return toast('Elige un destino');if(S.forum&&!ex&&!S.thread)return toast('Pon un título para la publicación');
+const body=build(),js=JSON.stringify(body),fd=new FormData();
+fd.append('payload',JSON.stringify({channelId:ch,forum:S.forum&&!ex,threadName:S.thread,tags:S.tags,body,menus:MENUS}));
+Object.keys(files).filter(n=>js.includes('attachment://'+n)).forEach(n=>fd.append('files',new File([files[n].f],n)));
+const r=await fetch('/api/send',{method:'POST',headers:{'x-password':pw},body:fd}),j=await r.json();
+toast(r.ok?'✅ Publicado':'❌ '+(j.message||j.error)+' '+JSON.stringify(j.errors||''))}
+async function init(){if(!pw){pw=prompt('Contraseña:')||'';sessionStorage.pw=pw}
+const r=await fetch('/api/channels',{headers:{'x-password':pw}});if(r.status==401){sessionStorage.pw='';pw='';toast('Contraseña incorrecta, recarga');return}
+const j=await r.json();chs=Array.isArray(j)?j:[];if(!Array.isArray(j))toast(j.message||j.error);R();fetch('/api/emojis',{headers:{'x-password':pw}}).then(r=>r.json()).then(e=>{S.emojis=e;R()}).catch(()=>{})}
+R();init();
+</script></html>
