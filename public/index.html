@@ -5,7 +5,7 @@
 #app{display:grid;grid-template-columns:minmax(380px,1fr) 1fr;height:100vh}@media(max-width:800px){#app{grid-template-columns:1fr;height:auto}}
 .col{overflow:auto;padding:16px}
 input,select,textarea,button{font:inherit;color:var(--t);background:var(--bg);border:1px solid #3f4147;border-radius:6px;padding:7px 9px;width:100%}
-textarea{min-height:70px;resize:vertical}button{cursor:pointer;width:auto;background:var(--p2)}button.pri{background:var(--b);border:0;padding:10px 18px;font-weight:600}
+button{white-space:nowrap}textarea{min-height:70px;resize:vertical}button{cursor:pointer;width:auto;background:var(--p2)}button.pri{background:var(--b);border:0;padding:10px 18px;font-weight:600}
 .card{background:var(--p);border-radius:8px;padding:12px;margin:10px 0}.row{display:flex;gap:8px;margin:6px 0;align-items:end}.row>*{flex:1}.row>button{flex:0}
 label{display:block;font-size:12px;color:var(--m);margin:6px 0 3px}.h{display:flex;justify-content:space-between;align-items:center;font-weight:600}
 .pv{background:var(--p2);border-radius:8px;padding:14px;max-width:560px}
@@ -19,7 +19,7 @@ hr{border:0;border-top:1px solid #4e5058;margin:10px 0}hr.nd{border:0}hr.s2{marg
 .mn{margin-top:6px}.mr{background:var(--p);border-radius:6px;padding:8px 10px;margin-top:6px}.card .card{background:var(--p2)}
 #toast{position:fixed;bottom:16px;right:16px;background:var(--p);padding:12px 16px;border-radius:8px;max-width:420px;display:none}
 </style>
-<div id=app><div class=col id=ed></div><div class=col><div class=h style="margin-bottom:10px">Vista previa <button class=pri onclick=send()>Publicar</button></div><div class=pv id=pv></div></div></div><div id=toast></div>
+<div id=app><div class=col id=ed></div><div class=col><div class=h style="margin-bottom:10px">Vista previa <button class=pri id=pb onclick=send()>Publicar</button></div><div class=pv id=pv></div></div></div><div id=toast></div>
 <script>
 const $=i=>document.getElementById(i);
 let pw=sessionStorage.pw||'',files={},chs=[];
@@ -70,8 +70,8 @@ const forumUI=()=>`<label>Qué hacer en el foro</label><select onchange="S.fm=th
 const E=p=>`<div><label>Icono (emoji o del servidor)</label><input list=em value="${esc(get(p))}" oninput="set('${p}',this.value)" placeholder="😀 o elige uno"></div>`;
 const tagsUI=()=>{const c=chs.find(c=>c.id==S.ch);return(c?.tags||[]).length?'<label>Etiquetas</label>'+c.tags.map(t=>`<label style="display:inline-flex;gap:4px;margin-right:10px"><input type=checkbox style="width:auto" ${S.tags.includes(t.id)?'checked':''} onchange="tg('${t.id}')">${esc(t.name)}</label>`).join(''):''};
 const tg=id=>{S.tags=S.tags.includes(id)?S.tags.filter(x=>x!=id):[...S.tags,id]};
-function R(){$('ed').innerHTML=`<div class=card><label>Destino</label><select onchange="pick(this.value)"><option value="">— elige canal o foro —</option>${chs.map(c=>`<option value=${c.id} ${c.id==S.ch?'selected':''}>${c.type==15?'🗂️ foro':'#'} ${esc(c.name)}</option>`).join('')}</select>${I('…o ID manual de canal/hilo existente','ch')}${S.forum?forumUI():''}${C('Permitir menciones (@)','ping')}</div>
-<datalist id=em>${S.emojis.map(e=>`<option value="${esc('<'+(e.animated?'a':'')+':'+e.name+':'+e.id+'>')}">${esc(e.name)}</option>`).join('')}</datalist><div class=card><label>Modo</label><select onchange="S.mode=this.value;R()"><option value=v2 ${S.mode=='v2'?'selected':''}>Componentes V2 (contenedores, separadores, secciones)</option><option value=classic ${S.mode=='classic'?'selected':''}>Clásico (texto + embeds + botones)</option></select></div>${S.mode=='v2'?v2UI():classicUI()}`;pv()}
+function R(){$('ed').innerHTML=toolsUI()+(S.edit?editBar():`<div class=card><label>Destino</label><select onchange="pick(this.value)"><option value="">— elige canal o foro —</option>${chs.map(c=>`<option value=${c.id} ${c.id==S.ch?'selected':''}>${c.type==15?'🗂️ foro':'#'} ${esc(c.name)}</option>`).join('')}</select>${I('…o ID manual de canal/hilo existente','ch')}${S.forum?forumUI():''}${C('Permitir menciones (@)','ping')}</div>`)+`
+<datalist id=em>${S.emojis.map(e=>`<option value="${esc('<'+(e.animated?'a':'')+':'+e.name+':'+e.id+'>')}">${esc(e.name)}</option>`).join('')}</datalist><div class=card><label>Modo</label><select onchange="S.mode=this.value;R()"><option value=v2 ${S.mode=='v2'?'selected':''}>Componentes V2 (contenedores, separadores, secciones)</option><option value=classic ${S.mode=='classic'?'selected':''}>Clásico (texto + embeds + botones)</option></select></div>${S.mode=='v2'?v2UI():classicUI()}`;$('pb').textContent=S.edit?'Guardar cambios':'Publicar';pv()}
 
 const col=h=>parseInt((h||'#5865f2').slice(1),16);
 const emo=e=>{const m=/^<(a?):(\w+):(\d+)>$/.exec(e.trim());return m?{id:m[3],name:m[2],animated:!!m[1]}:{name:e.trim()}};
@@ -98,14 +98,35 @@ h=S.box.on?`<div class="cont ${S.box.spoiler?'sp':''}" style="border-color:${S.b
 $('pv').innerHTML=h}
 
 const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',6000)};
-async function send(){const ex=S.forum&&S.fm=='exist',ch=ex?S.th:S.ch;if(!ch)return toast('Elige un destino');if(S.forum&&!ex&&!S.thread)return toast('Pon un título para la publicación');
-const body=build(),js=JSON.stringify(body),fd=new FormData();
-fd.append('payload',JSON.stringify({channelId:ch,forum:S.forum&&!ex,threadName:S.thread,tags:S.tags,body,menus:MENUS}));
-Object.keys(files).filter(n=>js.includes('attachment://'+n)).forEach(n=>fd.append('files',new File([files[n].f],n)));
-const r=await fetch('/api/send',{method:'POST',headers:{'x-password':pw},body:fd}),j=await r.json();
-toast(r.ok?'✅ Publicado':'❌ '+(j.message||j.error)+' '+JSON.stringify(j.errors||''))}
+const api=(u,o={})=>fetch(u,{...o,headers:{'x-password':pw,...(o.headers||{})}});
+const JH={'content-type':'application/json'};
+let TP=[],SN=[],tpSel='',snSel='';
+const snap=()=>JSON.parse(JSON.stringify({mode:S.mode,content:S.content,embeds:S.embeds,buttons:S.buttons,menus:S.menus,blocks:S.blocks,box:S.box,ping:S.ping}));
+const lab=()=>{const t=S.mode=='classic'?(S.content||S.embeds[0]?.title):S.blocks.find(b=>b.t=='text'||b.t=='sec')?.content;return String(t||'(sin texto)').replace(/[#*`]/g,'').trim().split('\n')[0].slice(0,60)};
+const fdt=t=>new Date(t).toLocaleString('es-ES',{dateStyle:'short',timeStyle:'short'});
+async function loadLists(){try{const[a,b]=await Promise.all([api('/api/templates'),api('/api/sent')]);if(a.ok)TP=await a.json();if(b.ok)SN=await b.json();R()}catch{}}
+const toolsUI=()=>`<div class=card><div class=h>Plantillas</div><div class=row><select onchange="tpSel=this.value"><option value="">— elige plantilla —</option>${TP.map(t=>`<option value=${t.id} ${t.id==tpSel?'selected':''}>${esc(t.name)}</option>`).join('')}</select><button onclick=tpLoad()>Cargar</button><button onclick=tpDel() title="Borrar plantilla">🗑</button><button onclick=tpSave()>💾 Guardar actual</button></div>
+<div class=h style="margin-top:12px">Mensajes enviados por el bot</div><div class=row><select onchange="snSel=this.value"><option value="">— elige mensaje para editar —</option>${SN.map(m=>`<option value=${m.id} ${m.id==snSel?'selected':''}>${esc(m.label)} · ${esc(m.channelName||'')} · ${fdt(m.ts)}</option>`).join('')}</select><button onclick=snLoad()>✏️ Editar</button><button onclick=snDel() title="Quitar de la lista (no borra el mensaje en Discord)">🗑</button></div></div>`;
+const editBar=()=>`<div class=card style="border:1px solid var(--b)"><div class=h>✏️ Editando mensaje enviado <button onclick="S.edit=null;R()">Cancelar edición</button></div><small>${esc(S.editLabel||'')}</small></div>`;
+async function tpSave(){const name=(prompt('Nombre de la plantilla (si ya existe, se sobrescribe):')||'').trim();if(!name)return;
+let n=0;const st=JSON.parse(JSON.stringify(snap(),(k,v)=>typeof v=='string'&&v.startsWith('attachment://')?(n++,''):v));
+const r=await api('/api/templates',{method:'POST',headers:JH,body:JSON.stringify({name,state:st})});
+if(!r.ok)return toast('❌ No se pudo guardar la plantilla');tpSel=(await r.json()).id;toast('✅ Plantilla guardada'+(n?` (${n} imagen(es) subidas desde el PC no se guardan: usa URL)`:''));loadLists()}
+async function tpLoad(){if(!tpSel)return toast('Elige una plantilla');const r=await api('/api/templates/'+tpSel);if(!r.ok)return toast('❌ No existe');Object.assign(S,JSON.parse(JSON.stringify((await r.json()).state)));R();toast('Plantilla cargada')}
+async function tpDel(){if(!tpSel||!confirm('¿Borrar esta plantilla?'))return;await api('/api/templates/'+tpSel,{method:'DELETE'});tpSel='';loadLists()}
+async function snLoad(){if(!snSel)return toast('Elige un mensaje');const r=await api('/api/sent/'+snSel),j=await r.json();if(!r.ok)return toast('❌ '+(j.error||'Error'));
+if(j.gone)return toast('Ese mensaje ya no existe en Discord. Quítalo de la lista con 🗑');
+files={};(j.attachments||[]).forEach(a=>files[a.filename]={u:a.url});Object.assign(S,JSON.parse(JSON.stringify(j.state)));S.edit=j.id;S.editLabel=`${j.label} · ${j.channelName||''} · ${fdt(j.ts)}`;R();toast('Mensaje cargado: edita y pulsa "Guardar cambios"')}
+async function snDel(){if(!snSel||!confirm('¿Quitar de la lista? (no borra el mensaje en Discord)'))return;await api('/api/sent/'+snSel,{method:'DELETE'});if(S.edit==snSel)S.edit=null;snSel='';loadLists()}
+async function send(){const edit=S.edit,ex=S.forum&&S.fm=='exist',ch=ex?S.th:S.ch;
+if(!edit){if(!ch)return toast('Elige un destino');if(S.forum&&!ex&&!S.thread)return toast('Pon un título para la publicación')}
+const body=build(),js=JSON.stringify(body),fd=new FormData(),cn=chs.find(c=>c.id==S.ch)?.name;
+fd.append('payload',JSON.stringify({channelId:ch,forum:!edit&&S.forum&&!ex,threadName:S.thread,tags:S.tags,body,menus:MENUS,state:snap(),channelName:cn?(S.forum?'🗂️ ':'#')+cn:''}));
+Object.keys(files).filter(n=>files[n].f&&js.includes('attachment://'+n)).forEach(n=>fd.append('files',new File([files[n].f],n)));
+const r=await api(edit?'/api/edit/'+edit:'/api/send',{method:'POST',body:fd}),j=await r.json();
+toast(r.ok?(edit?'✅ Mensaje editado':'✅ Publicado'):'❌ '+(j.message||j.error)+' '+JSON.stringify(j.errors||''));if(r.ok){if(edit)S.editLabel=lab();loadLists()}}
 async function init(){if(!pw){pw=prompt('Contraseña:')||'';sessionStorage.pw=pw}
 const r=await fetch('/api/channels',{headers:{'x-password':pw}});if(r.status==401){sessionStorage.pw='';pw='';toast('Contraseña incorrecta, recarga');return}
-const j=await r.json();chs=Array.isArray(j)?j:[];if(!Array.isArray(j))toast(j.message||j.error);R();fetch('/api/emojis',{headers:{'x-password':pw}}).then(r=>r.json()).then(e=>{S.emojis=e;R()}).catch(()=>{})}
+const j=await r.json();chs=Array.isArray(j)?j:[];if(!Array.isArray(j))toast(j.message||j.error);R();loadLists();fetch('/api/emojis',{headers:{'x-password':pw}}).then(r=>r.json()).then(e=>{S.emojis=e;R()}).catch(()=>{})}
 R();init();
 </script></html>

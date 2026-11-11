@@ -1,26 +1,20 @@
-# Iberia Publisher – despliegue en Render (24/7)
+# Iberia Publisher
 
-## 1. Sube el código a GitHub (repositorio PRIVADO)
-El `.env` NO se sube (ya está en .gitignore). Nunca pegues el token en el código.
+Panel web + bot de Discord para publicar mensajes, guardar plantillas y editar mensajes ya enviados.
 
-## 2. En Render
-1. New + → **Blueprint** → elige tu repo (lee `render.yaml`).
-2. Rellena las 3 variables cuando te las pida:
-   - `DISCORD_TOKEN`, `GUILD_ID`, `ADMIN_PASSWORD` (larga, 20+ caracteres).
-3. Deploy. Tu web quedará en `https://iberia-publisher.onrender.com` (HTTPS automático).
+## Variables de entorno
+`DISCORD_TOKEN`, `GUILD_ID`, `ADMIN_PASSWORD` (20+ caracteres) y `MONGODB_URI` (MongoDB Atlas, gratis).
 
-## Por qué plan Starter (7 $/mes)
-- El plan **Free se duerme a los 15 min** sin visitas y el bot se desconecta → NO es 24/7.
-- Los menús desplegables se guardan en `data/menus.json`; en Free ese disco se borra en cada reinicio.
-  Starter + disco persistente (`/var/data`) lo soluciona.
+## Base de datos
+Guarda: opciones de los desplegables, plantillas y mensajes enviados (para poder editarlos).
+Sin `MONGODB_URI` usa un archivo local que Render Free borra en cada reinicio/deploy.
 
-## Si quieres Free igualmente
-Quita `plan: starter` y el bloque `disk`/`DATA_DIR`, y usa UptimeRobot para hacer ping a `/health` cada 5 min.
-Aviso: los menús guardados se perderán en cada reinicio/redeploy.
+## Render + UptimeRobot
+1. Repo privado en GitHub → Render → New + → Blueprint.
+2. Rellena las 4 variables.
+3. UptimeRobot: monitor HTTP(s) a `https://TU-APP.onrender.com/health` cada 5 min.
 
-## Seguridad incluida
-- Comparación de contraseña segura + bloqueo tras 10 fallos (15 min) por IP
-- Validación de IDs, cabeceras de seguridad, errores controlados sin tumbar el servidor
-- Token y contraseña solo en variables de entorno
-
-⚠ Si el token de Discord se ha compartido alguna vez, regéneralo en el Developer Portal.
+## Editar mensajes
+Solo se pueden editar los enviados desde este panel (después de añadir la base de datos).
+Un mensaje V2 solo se puede editar como V2, y uno clásico como clásico. Las imágenes subidas desde
+el PC no se guardan en plantillas (usa URL), pero sí se conservan al editar un mensaje enviado.

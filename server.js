@@ -2,7 +2,8 @@ require('dotenv').config();
 const crypto = require('crypto');
 const express = require('express'), multer = require('multer');
 const { Client, GatewayIntentBits, Events } = require('discord.js');
-const { saveMenus, handleSelect } = require('./menus');
+const { handleSelect } = require('./menus');
+const db = require('./db');
 const { DISCORD_TOKEN: T, GUILD_ID: G, ADMIN_PASSWORD: P, PORT = 3000 } = process.env;
 const P2 = (P || '').trim();
 
@@ -33,7 +34,7 @@ app.use((q, r, n) => {
 });
 
 // Health check (Render lo usa para saber que el servicio está vivo)
-app.get('/health', (q, r) => r.json({ ok: true, bot: bot.isReady() }));
+app.get('/health', (q, r) => r.json({ ok: true, bot: bot.isReady(), db: db.kind() }));
 
 app.use(express.static('public'));
 
@@ -51,6 +52,8 @@ app.use('/api', (q, r, n) => {
   fails.set(q.ip, { n: cur.n + 1, t: Date.now() });
   r.status(401).json({ error: 'Contraseña incorrecta' });
 });
+
+app.use('/api', express.json({ limit: '2mb' }));
 
 app.get('/api/channels', wrap(async (q, r) => {
   const x = await dc(`/guilds/${G}/channels`), j = await x.json();
@@ -70,19 +73,65 @@ app.get('/api/emojis', wrap(async (q, r) => {
   r.json(Array.isArray(j) ? j.map(e => ({ id: e.id, name: e.name, animated: e.animated })) : []);
 }));
 
+const nameOf = (b, st) => { const t = st?.mode == 'classic' ? (st.content || st.embeds?.[0]?.title) : st?.blocks?.find(x => x.t == 'text' || x.t == 'sec')?.content; return String(t || '(sin texto)').replace(/[#*`]/g, '').trim().split('\n')[0].slice(0, 60); };
+const atts = m => (m?.attachments || []).map(a => ({ id: a.id, filename: a.filename, url: a.url }));
+const mkForm = (json, files) => { const fd = new FormData(); fd.append('payload_json', JSON.stringify(json)); files.forEach((f, i) => fd.append(`files[${i}]`, new Blob([f.buffer]), f.originalname)); return fd; };
+
 app.post('/api/send', up.array('files'), wrap(async (q, r) => {
-  const { channelId, forum, threadName, tags, body, menus } = JSON.parse(q.body.payload);
+  const { channelId, forum, threadName, tags, body, menus, state, channelName } = JSON.parse(q.body.payload);
   if (!isId(channelId)) return r.status(400).json({ error: 'ID de canal no válido' });
   const msg = { ...body, attachments: q.files.map((f, i) => ({ id: i, filename: f.originalname })) };
   const json = forum ? { name: threadName, applied_tags: tags || [], message: msg } : msg;
-  const fd = new FormData();
-  fd.append('payload_json', JSON.stringify(json));
-  q.files.forEach((f, i) => fd.append(`files[${i}]`, new Blob([f.buffer]), f.originalname));
-  const x = await dc(`/channels/${channelId}/${forum ? 'threads' : 'messages'}`, { method: 'POST', body: fd });
+  const x = await dc(`/channels/${channelId}/${forum ? 'threads' : 'messages'}`, { method: 'POST', body: mkForm(json, q.files) });
   const out = await x.json();
-  if (x.ok && menus?.length) saveMenus(menus);
+  if (x.ok) {
+    try {
+      await db.saveMenus(menus);
+      const m = forum ? (out.message || out) : out;
+      await db.addSent({ id: db.rid(), channelId: forum ? out.id : channelId, messageId: forum ? (out.message?.id || out.id) : out.id, channelName: channelName || '', label: nameOf(body, state), state, attachments: atts(m), menuIds: (menus || []).map(z => z.id), ts: Date.now() });
+    } catch (e) { console.error('No se pudo guardar en la base de datos:', e.message); }
+  }
   r.status(x.status).json(out);
 }));
+
+// Editar un mensaje ya enviado por el bot desde este panel
+app.post('/api/edit/:id', up.array('files'), wrap(async (q, r) => {
+  const rec = await db.getSent(q.params.id);
+  if (!rec) return r.status(404).json({ error: 'Mensaje no encontrado en la base de datos' });
+  const { body, menus, state } = JSON.parse(q.body.payload), js = JSON.stringify(body), names = q.files.map(f => f.originalname);
+  const keep = (rec.attachments || []).filter(a => js.includes('attachment://' + a.filename) && !names.includes(a.filename)).map(a => ({ id: a.id }));
+  const msg = { ...body, attachments: [...keep, ...q.files.map((f, i) => ({ id: i, filename: f.originalname }))] };
+  const x = await dc(`/channels/${rec.channelId}/messages/${rec.messageId}`, { method: 'PATCH', body: mkForm(msg, q.files) });
+  const out = await x.json();
+  if (x.ok) {
+    try {
+      await db.saveMenus(menus);
+      await db.delMenus((rec.menuIds || []).filter(i => !(menus || []).some(z => z.id === i)));
+      await db.updSent(rec.id, { state, label: nameOf(body, state), attachments: atts(out), menuIds: (menus || []).map(z => z.id), edited: Date.now() });
+    } catch (e) { console.error('No se pudo guardar la edición:', e.message); }
+  }
+  r.status(x.status).json(out);
+}));
+
+app.get('/api/sent', wrap(async (q, r) => r.json(await db.listSent())));
+app.get('/api/sent/:id', wrap(async (q, r) => {
+  const rec = await db.getSent(q.params.id);
+  if (!rec) return r.status(404).json({ error: 'No existe' });
+  let gone = false, att = rec.attachments || [];
+  try { const x = await dc(`/channels/${rec.channelId}/messages/${rec.messageId}`); if (x.status == 404) gone = true; else if (x.ok) att = atts(await x.json()); } catch { /* usa lo guardado */ }
+  r.json({ ...rec, attachments: att, gone });
+}));
+app.delete('/api/sent/:id', wrap(async (q, r) => { await db.delSent(q.params.id); r.json({ ok: true }); }));
+
+// Plantillas de mensajes
+app.get('/api/templates', wrap(async (q, r) => r.json(await db.listTpl())));
+app.get('/api/templates/:id', wrap(async (q, r) => { const t = await db.getTpl(q.params.id); t ? r.json(t) : r.status(404).json({ error: 'No existe' }); }));
+app.post('/api/templates', wrap(async (q, r) => {
+  const name = String(q.body.name || '').trim().slice(0, 80);
+  if (!name || !q.body.state || typeof q.body.state !== 'object') return r.status(400).json({ error: 'Datos no válidos' });
+  r.json({ id: await db.saveTpl(name, q.body.state) });
+}));
+app.delete('/api/templates/:id', wrap(async (q, r) => { await db.delTpl(q.params.id); r.json({ ok: true }); }));
 
 // Errores de subida (archivo demasiado grande, etc.)
 app.use((e, q, r, n) => { console.error(e.message); r.status(400).json({ error: e.message }); });

@@ -1,19 +1,8 @@
-const fs = require('fs'), path = require('path');
-const dir = process.env.DATA_DIR || path.join(__dirname, 'data'), file = path.join(dir, 'menus.json');
-let db = {};
-try { db = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* primera vez: aún no hay menús */ }
+const db = require('./db');
 
-// Guarda qué responder a cada opción de cada menú publicado
-function saveMenus(list) {
-  for (const m of list || []) db[m.id] = m.options;
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(file + '.tmp', JSON.stringify(db));
-  fs.renameSync(file + '.tmp', file);
-}
-
-// Responde cuando alguien elige una opción del desplegable
+// Responde cuando alguien elige una opción del desplegable (las opciones viven en la base de datos)
 async function handleSelect(i) {
-  const opts = db[i.customId];
+  const opts = await db.getMenu(i.customId);
   if (!opts) return i.reply({ content: 'Este menú ya no está configurado.', flags: 64 });
   const r = opts[i.values[0]];
   if (!r) return i.reply({ content: 'Opción no encontrada.', flags: 64 });
@@ -28,4 +17,4 @@ async function handleSelect(i) {
   return i.reply(out);
 }
 
-module.exports = { saveMenus, handleSelect };
+module.exports = { handleSelect };
