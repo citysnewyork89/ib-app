@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Settings - Iberia Panel</title><link rel="stylesheet" href="/css/style.css"></head>
+<body><div id="topbar"></div><div class="wrap"><h2>Settings</h2>
+<div class="card"><div class="h">Bot status <span class="badge" id="conn">checking…</span></div>
+<p class="muted" style="margin-top:4px">Controls how the bot appears in Discord (for example "Watching Iberia tickets").</p>
+<div class="row"><div><label>Presence</label><select id="st"><option value="online">Online</option><option value="idle">Idle</option><option value="dnd">Do not disturb</option><option value="invisible">Invisible</option></select></div>
+<div><label>Activity type</label><select id="at"><option>Playing</option><option>Watching</option><option>Listening</option><option>Competing</option><option>Custom</option></select></div></div>
+<div class="fld"><label>Activity text</label><input id="tx" maxlength="120" placeholder="Iberia tickets"></div>
+<div class="row" style="justify-content:flex-end"><button class="pri" onclick="saveBot()">Save bot status</button></div></div>
+<div class="card" id="pw"><div class="h">Change my password</div>
+<div class="row"><div><label>Current password</label><input id="p0" type="password" autocomplete="current-password"></div><div><label>New password (min. 8 characters)</label><input id="p1" type="password" autocomplete="new-password"></div></div>
+<div class="row" style="justify-content:flex-end"><button onclick="savePw()">Update password</button></div></div></div>
+<script src="/js/common.js"></script>
+<script>
+async function load() {
+  try { const b = await apiJson('/api/config/bot'); $('st').value = b.status; $('at').value = b.activityType; $('tx').value = b.activityText;
+    $('conn').textContent = b.ready ? 'Connected as ' + b.botTag : 'Not connected'; $('conn').className = 'badge ' + (b.ready ? 'ok' : 'bad'); } catch (e) { toast(e.message); }
+  if (IB.user().root) $('pw').innerHTML = '<div class="h">Password</div><p class="muted">The main administrator password is set on the server (ADMIN_PASSWORD).</p>';
+}
+async function saveBot() { try { await apiJson('/api/config/bot', 'PUT', { status: $('st').value, activityType: $('at').value, activityText: $('tx').value }); toast('Bot status updated'); } catch (e) { toast(e.message); } }
+async function savePw() { try { await apiJson('/api/me/password', 'POST', { current: $('p0').value, next: $('p1').value }); $('p0').value = $('p1').value = ''; toast('Password updated'); } catch (e) { toast(e.message); } }
+if (IB.guard('admin')) { IB.topbar('Settings'); load(); }
+</script></body></html>

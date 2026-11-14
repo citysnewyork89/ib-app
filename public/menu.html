@@ -1,0 +1,17 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Menu - Iberia Panel</title><link rel="stylesheet" href="/css/style.css"></head>
+<body><div id="topbar"></div><div class="wrap"><h2>What would you like to do?</h2><div class="grid" id="g"></div></div>
+<script src="/js/common.js"></script>
+<script>
+if (IB.guard()) {
+  IB.topbar('', false);
+  const adm = IB.user().role === 'admin';
+  const items = [
+    ['/publisher.html', 'Publish texts', 'Compose, publish and edit messages in your Discord server.', true],
+    ['/helpline.html', 'Ticket &amp; helpline settings', 'AI suggestions, claim system, embeds, messages and knowledge base.', adm],
+    ['/settings.html', 'Settings', 'Bot status and account options.', adm],
+    ['/users.html', 'Users', 'Create, edit, suspend or delete panel users.', adm]
+  ];
+  $('g').innerHTML = items.filter(i => i[3]).map(i => `<a class="tile" href="${i[0]}"><b>${i[1]}</b><span>${i[2]}</span></a>`).join('');
+  api('/api/me').catch(() => {});
+}
+</script></body></html>

@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: iberia-publisher
+    runtime: node
+    plan: free               # UptimeRobot pings /health every 5 min to keep it awake
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: MONGODB_URI
+        sync: false
+      - key: GEMINI_API_KEY      # optional: can also be pasted in the web panel
+        sync: false
