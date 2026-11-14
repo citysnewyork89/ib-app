@@ -1,0 +1,38 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Users - Iberia Panel</title><link rel="stylesheet" href="/css/style.css"></head>
+<body><div id="topbar"></div><div class="wrap">
+<div class="h"><h2 style="margin:0">Users</h2><button class="pri" onclick="openForm()">Create user</button></div>
+<p class="muted">People listed here can sign in to this panel. Administrators can manage everything; editors can only publish texts.</p>
+<div id="form"></div><div id="list"></div></div>
+<script src="/js/common.js"></script>
+<script>
+let users = [];
+const when = t => t ? new Date(t).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'never';
+function draw() {
+  const me = IB.user().id;
+  $('list').innerHTML = users.map(u => `<div class="card ucard"><div><b>${esc(u.username)}</b> ${u.root ? '<span class=badge>main administrator</span>' : ''}
+    <span class="badge">${u.role === 'admin' ? 'Administrator' : 'Editor'}</span> <span class="badge ${u.status === 'active' ? 'ok' : 'bad'}">${u.status === 'active' ? 'Active' : 'Suspended'}</span>
+    <div class="muted" style="margin-top:4px;font-size:12px">Last sign-in: ${when(u.lastLogin)}${u.createdAt ? ' · Created: ' + when(u.createdAt) : ''}</div></div>
+    <div class="acts">${u.root ? '<small>Managed on the server</small>' : `<button onclick="openForm('${u.id}')">Edit</button>
+    ${u.id !== me ? `<button onclick="toggle('${u.id}')">${u.status === 'active' ? 'Suspend' : 'Reactivate'}</button><button class="dng" onclick="del('${u.id}')">Delete</button>` : ''}`}</div></div>`).join('');
+}
+async function load() { try { users = await apiJson('/api/users'); draw(); } catch (e) { toast(e.message); } }
+function openForm(id) {
+  const u = users.find(x => x.id === id) || { username: '', role: 'editor', status: 'active' };
+  $('form').innerHTML = `<div class="card"><div class="h">${id ? 'Edit user' : 'Create user'}</div>
+  <div class="row"><div><label>Username</label><input id="fu" value="${esc(u.username)}" autocomplete="off"></div>
+  <div><label>${id ? 'New password (leave empty to keep)' : 'Password (min. 8 characters)'}</label><input id="fp" type="password" autocomplete="new-password"></div></div>
+  <div class="row"><div><label>Role</label><select id="fr"><option value="editor" ${u.role === 'editor' ? 'selected' : ''}>Editor (publish texts only)</option><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Administrator (full access)</option></select></div>
+  <div><label>Status</label><select id="fs"><option value="active" ${u.status === 'active' ? 'selected' : ''}>Active</option><option value="suspended" ${u.status === 'suspended' ? 'selected' : ''}>Suspended</option></select></div></div>
+  <div class="row" style="justify-content:flex-end"><button onclick="$('form').innerHTML=''">Cancel</button><button class="pri" onclick="saveUser('${id || ''}')">${id ? 'Save changes' : 'Create user'}</button></div></div>`;
+  $('fu').focus();
+}
+async function saveUser(id) {
+  const b = { username: $('fu').value, role: $('fr').value, status: $('fs').value };
+  if ($('fp').value) b.password = $('fp').value;
+  try { await apiJson(id ? '/api/users/' + id : '/api/users', id ? 'PUT' : 'POST', id ? b : { ...b, password: $('fp').value }); $('form').innerHTML = ''; toast(id ? 'User updated' : 'User created'); load(); }
+  catch (e) { toast(e.message); }
+}
+async function toggle(id) { const u = users.find(x => x.id === id); try { await apiJson('/api/users/' + id, 'PUT', { status: u.status === 'active' ? 'suspended' : 'active' }); load(); } catch (e) { toast(e.message); } }
+async function del(id) { const u = users.find(x => x.id === id); if (!confirm('Delete user "' + u.username + '"? This cannot be undone.')) return; try { await apiJson('/api/users/' + id, 'DELETE'); toast('User deleted'); load(); } catch (e) { toast(e.message); } }
+if (IB.guard('admin')) { IB.topbar('Users'); load(); }
+</script></body></html>

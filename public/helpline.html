@@ -1,0 +1,144 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ticket &amp; helpline settings - Iberia Panel</title><link rel="stylesheet" href="/css/style.css"></head>
+<body><div id="topbar"></div><div class="wrap">
+<div class="sticky"><div class="h"><h2 style="margin:0">Ticket &amp; helpline settings</h2><button class="pri" id="sv" onclick="saveAll()">Save all changes</button></div><div class="tabs" id="tabs"></div></div>
+<div id="c"></div></div>
+<script src="/js/common.js"></script>
+<script>
+let cfg = null, tab = 'general', status = null, poll = null;
+const TABS = [['general', 'General'], ['ai', 'AI'], ['knowledge', 'Knowledge'], ['embeds', 'Embeds'], ['messages', 'Messages'], ['snippets', 'Snippets'], ['test', 'Test & tickets']];
+const G = p => p.split('.').reduce((o, k) => o?.[k], cfg);
+const S = (p, v) => { const k = p.split('.'), l = k.pop(); k.reduce((o, x) => o[x], cfg)[l] = v; if (p.startsWith('embeds.')) prevs(); };
+const txt = (l, p, ph = '', t = 'text') => `<div class="fld"><label>${l}</label><input type="${t}" value="${esc(G(p))}" placeholder="${esc(ph)}" oninput="S('${p}',this.value)"></div>`;
+const area = (l, p, rows = 4) => `<div class="fld"><label>${l}</label><textarea rows="${rows}" oninput="S('${p}',this.value)">${esc(G(p))}</textarea></div>`;
+const num = (l, p, min, max) => `<div class="fld"><label>${l}</label><input type="number" min="${min}" max="${max}" value="${esc(G(p))}" oninput="S('${p}',+this.value)"></div>`;
+const chk = (l, p) => `<label class="chk"><input type="checkbox" ${G(p) ? 'checked' : ''} onchange="S('${p}',this.checked)">${l}</label>`;
+const lines = (l, p, sep = '\n', rows = 4) => `<div class="fld"><label>${l}</label><textarea rows="${rows}" oninput="S('${p}',this.value.split(/[\\s,]+/).filter(Boolean))">${esc((G(p) || []).join(sep))}</textarea></div>`;
+const sel = (l, p, opts) => `<div class="fld"><label>${l}</label><select onchange="S('${p}',this.value)">${opts.map(o => `<option value="${o[0]}" ${G(p) === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></div>`;
+
+function tabs() { $('tabs').innerHTML = TABS.map(t => `<button class="${tab === t[0] ? 'on' : ''}" onclick="go('${t[0]}')">${t[1]}</button>`).join(''); }
+function go(t) { tab = t; draw(); }
+
+function general() {
+  return `<div class="card"><div class="h">Tickets</div><p class="muted">Tickets are detected in the category below when the modmail bot posts the user information embed.</p>
+  <div class="row">${txt('Ticket category ID', 'general.categoryId')}${txt('Modmail bot ID', 'general.modmailBotId')}</div>
+  ${lines('Users allowed to write in claimed tickets without claiming (one ID per line)', 'general.allowedUsers')}
+  <div class="row">${txt('Command prefix', 'general.prefix')}${num('Unclaim after (minutes without a reply)', 'general.claimTimeoutMin', 1, 1440)}${num('Pending-reply reminder every (hours)', 'general.reminderHours', 1, 720)}</div>
+  <div class="row">${num('Warning cooldown per user (seconds)', 'general.warnCooldownSec', 0, 3600)}${num('Wait for the first customer message (seconds)', 'general.firstSuggestionDelaySec', 0, 60)}</div></div>
+  <div class="card"><div class="h">Features</div>${chk('Automatic AI reply suggestion when a ticket opens', 'general.autoSuggest')}${chk('Warn users who write in a claimed ticket without claiming it', 'general.claimWarnings')}
+  ${chk('Also warn when the ticket is not claimed by anyone', 'general.warnWhenUnclaimed')}${chk('Send DM reminders to claimers when the customer is waiting for a reply', 'general.reminders')}</div>`;
+}
+const PRESETS = {
+  gemini: { name: 'Google Gemini', type: 'gemini', model: 'gemini-3.8-flash', baseUrl: '' },
+  groq: { name: 'Groq (free tier)', type: 'openai', model: 'openai/gpt-oss-120b', baseUrl: 'https://api.groq.com/openai/v1' },
+  openrouter: { name: 'OpenRouter (free models)', type: 'openai', model: 'meta-llama/llama-3.3-70b-instruct', baseUrl: 'https://openrouter.ai/api/v1' },
+  cerebras: { name: 'Cerebras (free tier)', type: 'openai', model: 'gpt-oss-120b', baseUrl: 'https://api.cerebras.ai/v1' },
+  mistral: { name: 'Mistral (free tier)', type: 'openai', model: 'mistral-small-latest', baseUrl: 'https://api.mistral.ai/v1' },
+  deepseek: { name: 'DeepSeek', type: 'openai', model: 'deepseek-chat', baseUrl: 'https://api.deepseek.com/v1' },
+  custom: { name: 'Custom (OpenAI-compatible)', type: 'openai', model: '', baseUrl: '' }
+};
+function addProvider(k) {
+  if (!k) return; let id = k, n = 2; while (cfg.ai.providers.some(p => p.id === id)) id = k + '-' + n++;
+  cfg.ai.providers.push({ id, ...PRESETS[k], enabled: false, apiKey: '' }); draw();
+}
+function mv(i, d) { const a = cfg.ai.providers, j = i + d; if (j < 0 || j >= a.length) return;[a[i], a[j]] = [a[j], a[i]]; draw(); }
+function ai() {
+  return `<div class="card"><div class="h">Reply generation</div>
+  ${sel('Mode', 'ai.mode', [['fallback', 'Fallback: use the first working provider (in the order below)'], ['ensemble', 'Ensemble: ask all enabled providers and merge their answers']])}
+  <div class="row">${num('Max reply length (characters)', 'ai.maxReplyChars', 200, 3000)}${num('Temperature (0 = strict, 1 = creative)', 'ai.temperature', 0, 1)}</div>
+  <div class="row">${txt('Business email (sales, offers, buying Iberia)', 'ai.businessEmail')}${txt('Recruitment email (application status)', 'ai.recruitmentEmail')}</div>
+  ${area('System rules (use {businessEmail}, {recruitmentEmail} and {maxChars})', 'ai.systemRules', 14)}
+  ${area('Extra knowledge / notes for the AI (always available to it)', 'ai.extraKnowledge', 5)}</div>
+  <div class="card"><div class="h">AI providers</div><p class="muted">Google Gemini is the main provider (free key at aistudio.google.com/apikey). Other free options such as Groq, OpenRouter or Cerebras use OpenAI-compatible endpoints. Keys are stored on the server and never shown again. Order matters in fallback mode.</p>
+  ${cfg.ai.providers.map((p, i) => { const q = 'ai.providers.' + i; return `<div class="card"><div class="h"><span>${esc(p.name)} <small>(${esc(p.id)})</small> ${p.hasKey ? '<span class="badge ok">key saved ' + esc(p.keyHint || '') + '</span>' : '<span class="badge bad">no key</span>'}</span>
+    <span><button onclick="mv(${i},-1)">Up</button> <button onclick="mv(${i},1)">Down</button> <button class="dng" onclick="if(confirm('Remove this provider?')){cfg.ai.providers.splice(${i},1);draw()}">Remove</button></span></div>
+    ${chk('Enabled', q + '.enabled')}<div class="row">${txt('Name', q + '.name')}${sel('Type', q + '.type', [['gemini', 'Google Gemini'], ['openai', 'OpenAI-compatible']])}</div>
+    <div class="row">${txt('Model', q + '.model')}${p.type === 'openai' ? txt('Base URL', q + '.baseUrl', 'https://…/v1') : ''}</div>
+    ${txt('API key (leave empty to keep the saved one)', q + '.apiKey', p.hasKey ? 'Saved - type a new key to replace it' : 'Paste your API key', 'password')}
+    ${p.hasKey ? chk('Delete the saved key on save', q + '.clearKey') : ''}</div>`; }).join('')}
+  <div class="row"><select id="np"><option value="">Add provider…</option>${Object.entries(PRESETS).map(([k, v]) => `<option value="${k}">${esc(v.name)}</option>`).join('')}</select><button onclick="addProvider($('np').value)">Add</button></div></div>`;
+}
+function knowledge() {
+  const k = status?.knowledge;
+  return `<div class="card"><div class="h">Knowledge base status <button id="rb" onclick="rebuild()" ${k?.running ? 'disabled' : ''}>Rebuild now</button></div>
+  <p class="muted" id="ks">${k ? `${k.running ? 'Working: ' + esc(k.step) + '…' : 'Idle'} · ${k.docs} sources · ${k.chunks} fragments · last update: ${k.finishedAt ? new Date(k.finishedAt).toLocaleString('en-GB') : 'never'}` : 'Loading…'}</p>
+  ${k?.errors?.length ? `<details><summary class="muted">${k.errors.length} warning(s)</summary><pre>${esc(k.errors.join('\n'))}</pre></details>` : ''}
+  <p class="muted">Save your changes before rebuilding. The bot rebuilds automatically on the schedule below.</p></div>
+  <div class="card"><div class="h">Sources</div>
+  ${lines('Website pages to crawl (one URL per line; same-site links and the sitemap are followed)', 'knowledge.siteUrls', '\n', 4)}
+  ${txt('Live jobs page (read at the moment a job question arrives)', 'knowledge.jobsUrl')}
+  ${lines('Extra links: Google Docs, YouTube videos or any other page (one per line)', 'knowledge.extraUrls', '\n', 4)}
+  <div class="row">${num('Max website pages', 'knowledge.maxPages', 1, 300)}${num('Rebuild every (hours)', 'knowledge.refreshHours', 1, 720)}</div></div>
+  <div class="card"><div class="h">Discord channels</div>
+  ${chk('Read the server channels (messages, embeds and the links inside them: website, Google Docs, YouTube)', 'knowledge.includeDiscord')}
+  ${num('Messages read per channel', 'knowledge.maxMessagesPerChannel', 20, 2000)}
+  ${lines('Channel or category IDs to exclude (the ticket category is always excluded)', 'knowledge.excludeChannelIds', '\n', 3)}</div>`;
+}
+const EM = {
+  ticketAlert: ['Ticket alert (sent when a ticket opens)', [['content', 'Message content (e.g. @here, leave empty for none)']]],
+  suggestion: ['Reply suggestion embed', [['commandsTitle', 'Commands field title'], ['afterText', 'Follow-up text (uses {snippet} and {after})'], ['emptyText', 'Text when there is no written reply']]],
+  claim: ['Claim embed', [['buttonLabel', 'Button label']]]
+};
+function embedPrev(e) {
+  const v = { owner: '@User', ownerId: '123456789012345678', ownerName: 'User', channel: '#ticket', claimer: '@Staff', claimers: '@Staff', timeout: G('general.claimTimeoutMin') };
+  const f = s => esc(String(s || '').replace(/\{(\w+)\}/g, (m, k) => k in v ? v[k] : m));
+  return `<div class="ep" style="border-color:${esc(e.color)}">${e.title ? `<b>${f(e.title)}</b>\n` : ''}${f(e.description)}${e.footer ? `\n<small>${f(e.footer)}</small>` : ''}</div>`;
+}
+function prevs() { for (const k of Object.keys(EM)) { const el = $('pv_' + k); if (el) el.innerHTML = embedPrev(cfg.embeds[k]); } }
+function embeds() {
+  return `<p class="muted">Available variables: {owner} {ownerId} {ownerName} {channel} {channel_url} {claimer} {claimers} {timeout}. Discord markdown is supported.</p>` +
+    Object.entries(EM).map(([k, [name, extra]]) => { const q = 'embeds.' + k; return `<div class="card"><div class="h">${name}</div>
+    ${extra.map(x => txt(x[1], q + '.' + x[0])).join('')}${txt('Title', q + '.title')}${area('Description', q + '.description', 4)}
+    <div class="row">${txt('Color', q + '.color', '#1c1c1c', 'color')}${txt('Footer', q + '.footer')}</div><div class="row">${txt('Thumbnail URL', q + '.thumbnail')}${txt('Image URL', q + '.image')}</div>
+    ${k === 'claim' ? sel('Button style', q + '.buttonStyle', [['Secondary', 'Grey (transparent look)'], ['Primary', 'Blue'], ['Success', 'Green'], ['Danger', 'Red']]) : ''}${chk('Show timestamp', q + '.timestamp')}
+    <label>Preview</label><div id="pv_${k}">${embedPrev(cfg.embeds[k])}</div></div>`; }).join('');
+}
+const MSG = { claimSuccess: 'Ticket claimed', addClaimSuccess: 'Another user joined the claim (?addmeclaim)', alreadyClaimedByYou: 'User tries to claim a ticket they already claimed', alreadyClaimed: 'Someone tries to claim a ticket that is already claimed', autoUnclaim: 'Automatic unclaim after no reply', notClaimedWarning: 'Warning when someone writes without claiming', dmReminder: 'DM reminder for pending replies ({channel}, {channel_url})', suggestionError: 'The AI could not answer', notATicket: 'Claim button used outside a ticket' };
+function messages() {
+  return `<p class="muted">Plain messages the bot sends. Variables: {claimer} {claimers} {owner} {channel} {timeout}. Custom emojis use the format &lt;:name:id&gt;.</p>` + Object.entries(MSG).map(([k, l]) => `<div class="card">${area(l, 'messages.' + k, 3)}</div>`).join('');
+}
+function snippets() {
+  return `<p class="muted">The snippets the AI may suggest. Describe what each one does so the AI chooses correctly. "Run afterwards" is shown as a plain (non-copyable) note.</p>` +
+    cfg.snippets.map((s, i) => `<div class="card"><div class="row">${txt('Name (without prefix)', `snippets.${i}.name`)}${txt('Run afterwards (snippet name, optional)', `snippets.${i}.after`)}<button class="dng" onclick="cfg.snippets.splice(${i},1);draw()">Remove</button></div>${area('What it does', `snippets.${i}.desc`, 2)}</div>`).join('') +
+    `<button onclick="cfg.snippets.push({name:'',desc:'',after:''});draw()">Add snippet</button>`;
+}
+let tickets = [];
+function test() {
+  return `<div class="card"><div class="h">Test the AI</div><p class="muted">Write a customer message to see the suggestion the bot would give (uses the saved settings).</p>
+  <textarea id="tm" rows="3" placeholder="Hello, I want to apply for a job at Iberia"></textarea><div class="row" style="justify-content:flex-end"><button class="pri" onclick="runTest()" id="tb">Generate suggestion</button></div><div id="tr"></div></div>
+  <div class="card"><div class="h">Tracked tickets <button onclick="loadTickets()">Refresh</button></div><div id="tl" class="muted">Loading…</div></div>`;
+}
+async function runTest() {
+  $('tb').disabled = true; $('tr').innerHTML = '<p class="muted">Generating…</p>';
+  try { const r = await apiJson('/api/helpline/test', 'POST', { message: $('tm').value });
+    $('tr').innerHTML = `<label>Suggested reply (copyable)</label><pre>${esc(r.reply || '(no written reply)')}</pre><label>Suggested commands</label>` + (r.commands.length ? r.commands.map(c => `<pre>${esc(c.text)}</pre>${c.after ? `<small>Afterwards, run ${esc(c.after)}</small>` : ''}`).join('') : '<p class="muted">None</p>');
+  } catch (e) { $('tr').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  $('tb').disabled = false;
+}
+async function loadTickets() {
+  try { tickets = await apiJson('/api/helpline/tickets'); const f = t => t ? new Date(t).toLocaleString('en-GB') : '-';
+    $('tl').innerHTML = tickets.length ? tickets.map(t => `<div class="card"><b>${esc(t.ownerName || t.ownerId || 'unknown')}</b> <small>channel ${esc(t.channelId)}</small><div class="muted" style="font-size:12px">Opened ${f(t.openedAt)} · Claimed by: ${t.claimers.length ? t.claimers.map(esc).join(', ') : 'nobody'}</div></div>`).join('') : 'No tickets tracked yet.'; } catch (e) { $('tl').textContent = e.message; }
+}
+async function rebuild() {
+  try { await saveAll(true); const r = await apiJson('/api/helpline/rebuild', 'POST'); toast(r.started ? 'Knowledge rebuild started' : 'A rebuild is already running'); refreshStatus(); } catch (e) { toast(e.message); }
+}
+async function refreshStatus() {
+  try {
+    status = await apiJson('/api/helpline/status');
+    if (tab === 'knowledge') { const k = status.knowledge, el = $('ks'), b = $('rb'); if (b) b.disabled = k.running; if (el) el.textContent = `${k.running ? 'Working: ' + k.step + '…' : 'Idle'} · ${k.docs} sources · ${k.chunks} fragments · last update: ${k.finishedAt ? new Date(k.finishedAt).toLocaleString('en-GB') : 'never'}`; }
+  } catch { /* ignore */ }
+}
+function draw() {
+  tabs(); const fn = { general, ai, knowledge, embeds, messages, snippets, test }[tab]; $('c').innerHTML = fn();
+  if (tab === 'test') loadTickets();
+}
+async function saveAll(quiet) {
+  $('sv').disabled = true;
+  try { cfg = await apiJson('/api/config/helpline', 'PUT', cfg); if (!quiet) toast('Settings saved'); if (tab === 'ai' || !quiet) draw(); }
+  catch (e) { toast(e.message); throw e; } finally { $('sv').disabled = false; }
+}
+async function load() {
+  try { cfg = await apiJson('/api/config/helpline'); await refreshStatus(); draw(); poll = setInterval(refreshStatus, 4000); } catch (e) { toast(e.message); }
+}
+window.addEventListener('beforeunload', () => clearInterval(poll));
+if (IB.guard('admin')) { IB.topbar('Ticket & helpline settings'); load(); }
+</script></body></html>

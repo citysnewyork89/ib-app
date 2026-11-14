@@ -1,0 +1,114 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Publish texts - Iberia Panel</title><link rel="stylesheet" href="/css/style.css"></head>
+<body><div id="topbar"></div>
+<div id=app><div class=col id=ed></div><div class=col><div class=h style="margin-bottom:10px">Preview <button class=pri id=pb onclick=send()>Publish</button></div><div class=pv id=pv></div></div></div>
+<script src="/js/common.js"></script>
+<script>
+let files={},chs=[];
+const S={mode:'v2',fm:'new',th:'',threads:[],emojis:[],ch:'',forum:false,thread:'',tags:[],ping:false,content:'',embeds:[],buttons:[],menus:[],blocks:[{t:'text',content:'# Title\nWrite your announcement here'}],box:{on:true,color:'#5865f2',spoiler:false}};
+const P=p=>p.split('.'),get=p=>P(p).reduce((o,k)=>o?.[k],S);
+const set=(p,v)=>{const k=P(p),l=k.pop();k.reduce((o,x)=>o[x],S)[l]=v;pv()};
+const md=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/`(.+?)`/g,'<code>$1</code>').replace(/^### (.+)$/gm,'<b>$1</b>').replace(/^## (.+)$/gm,'<h3>$1</h3>').replace(/^# (.+)$/gm,'<h2>$1</h2>').replace(/\n/g,'<br>');
+const U=u=>u?.startsWith('attachment://')?files[u.slice(13)]?.u:u;
+const I=(l,p,t='text')=>`<div><label>${l}</label><input type="${t}" value="${esc(get(p))}" oninput="set('${p}',this.value)"></div>`;
+const T=(l,p)=>`<div><label>${l}</label><textarea oninput="set('${p}',this.value)">${esc(get(p))}</textarea></div>`;
+const C=(l,p)=>`<label style="display:flex;gap:6px;align-items:center"><input type=checkbox style="width:auto" ${get(p)?'checked':''} onchange="set('${p}',this.checked)">${l}</label>`;
+const M=(l,p)=>`<div><label>${l} (URL or upload a file)</label><div class=row><input value="${esc(get(p))}" oninput="set('${p}',this.value)"><input type=file accept="image/*" style="max-width:120px" onchange="up('${p}',this.files[0])"></div></div>`;
+const up=(p,f)=>{if(!f)return;const n=(Date.now()%1e7)+'_'+f.name.replace(/[^\w.]/g,'_');files[n]={f,u:URL.createObjectURL(f)};set(p,'attachment://'+n);R()};
+const A=(p,v)=>{get(p).push(v);R()},D=(p,i)=>{get(p).splice(i,1);R()},Mv=(p,i,d)=>{const a=get(p),j=i+d;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];R()};
+const hd=(t,p,i)=>`<div class=h>${t}<span><button onclick="Mv('${p}',${i},-1)">↑</button> <button onclick="Mv('${p}',${i},1)">↓</button> <button onclick="D('${p}',${i})">✕</button></span></div>`;
+const btnsUI=p=>get(p).map((b,i)=>`<div class=row>${I('Text',p+'.'+i+'.label')}${I('URL (https://…)',p+'.'+i+'.url')}${E(p+'.'+i+'.emoji')}<button onclick="D('${p}',${i})">✕</button></div>`).join('')+`<button onclick="A('${p}',{label:'',url:'',emoji:''})">+ Link button</button>`;
+
+const BN={text:'Text',sep:'Separator',gal:'Gallery',sec:'Section',btns:'Buttons',menu:'Dropdown menu'};
+const newOpt=()=>({label:'',desc:'',emoji:'',r:{content:'',eon:false,et:'',ed:'',ec:'#5865f2',ei:'',eth:'',ef:'',priv:true}});
+const newMenu=()=>({t:'menu',ph:'Choose an option…',opts:[newOpt()]});
+const menuUI=p=>I('Dropdown placeholder (shown when nothing is selected)',p+'.ph')+get(p+'.opts').map((o,j)=>{const q=p+'.opts.'+j,r=q+'.r';return`<div class=card>${hd('Option '+(j+1),p+'.opts',j)}
+<div class=row>${I('Text',q+'.label')}${I('Short description',q+'.desc')}${E(q+'.emoji')}</div>
+<label>Bot reply when this option is selected</label>${T('Text message ({user} = mentions the person who selects)',r+'.content')}
+<label style="display:flex;gap:6px;align-items:center"><input type=checkbox style="width:auto" ${o.r.eon?'checked':''} onchange="set('${r}.eon',this.checked);R()">Add an embed to the reply</label>
+${o.r.eon?`<div class=row>${I('Title',r+'.et')}${I('Color',r+'.ec','color')}</div>${T('Embed description',r+'.ed')}<div class=row>${I('Large image (URL)',r+'.ei')}${I('Thumbnail (URL)',r+'.eth')}</div>${I('Footer',r+'.ef')}`:''}
+${C('Private reply (only visible to the person who selects)',r+'.priv')}</div>`}).join('')+(get(p+'.opts').length<25?`<button onclick="A('${p}.opts',newOpt())">+ Option</button>`:'');
+function embedUI(e,i){const p='embeds.'+i;return`<div class=card>${hd('Embed '+(i+1),'embeds',i)}
+<div class=row>${I('Title',p+'.title')}${I('Title URL',p+'.url')}${I('Color',p+'.color','color')}</div>${T('Description',p+'.description')}
+<div class=row>${I('Author',p+'.an')}${M('Author icon',p+'.ai')}</div>${M('Large image',p+'.img')}${M('Thumbnail',p+'.th')}${I('Footer',p+'.ft')}
+${e.fields.map((f,j)=>`<div class=row>${I('Field',p+'.fields.'+j+'.name')}${I('Value',p+'.fields.'+j+'.value')}<div style="flex:0">${C('Inline',p+'.fields.'+j+'.inline')}</div><button onclick="D('${p}.fields',${j})">✕</button></div>`).join('')}
+<button onclick="A('${p}.fields',{name:'',value:'',inline:false})">+ Field</button></div>`}
+function blockUI(b,i){const p='blocks.'+i;let h='';
+if(b.t=='text')h=T('Text (markdown: # title, **bold**, [link](url))',p+'.content');
+if(b.t=='sep')h=`<div class=row><div>${C('Visible line',p+'.div')}</div><div><label>Spacing</label><select onchange="set('${p}.sp',this.value);R()"><option value=1 ${b.sp==1?'selected':''}>Small</option><option value=2 ${b.sp==2?'selected':''}>Large</option></select></div></div>`;
+if(b.t=='gal')h=b.items.map((it,j)=>`<div class=row>${M('Image',p+'.items.'+j+'.url')}${I('Description',p+'.items.'+j+'.d')}<button onclick="D('${p}.items',${j})">✕</button></div>`).join('')+`<button onclick="A('${p}.items',{url:'',d:''})">+ Image</button>`;
+if(b.t=='sec')h=T('Text',p+'.content')+`<label>Accessory</label><select onchange="set('${p}.acc',this.value);R()"><option value=th ${b.acc=='th'?'selected':''}>Thumbnail</option><option value=bt ${b.acc=='bt'?'selected':''}>Link button</option></select>`+(b.acc=='th'?M('Thumbnail',p+'.url'):`<div class=row>${I('Button text',p+'.label')}${I('URL',p+'.url')}${E(p+'.emoji')}</div>`);
+if(b.t=='btns')h=btnsUI(p+'.btns');
+if(b.t=='menu')h=menuUI(p);
+return`<div class=card>${hd(BN[b.t],'blocks',i)}${h}</div>`}
+const NB={text:{t:'text',content:''},sep:{t:'sep',div:true,sp:1},gal:{t:'gal',items:[{url:'',d:''}]},sec:{t:'sec',content:'',acc:'th',url:'',label:'',emoji:''},btns:{t:'btns',btns:[{label:'',url:'',emoji:''}]},menu:newMenu()};
+const add=k=>{S.blocks.push(JSON.parse(JSON.stringify(NB[k])));R()};
+const v2UI=()=>`<div class=card><div class=h>Container</div>${C('Wrap everything in a colored container','box.on')}<div class=row>${I('Side color','box.color','color')}<div>${C('Spoiler','box.spoiler')}</div></div></div>`+S.blocks.map(blockUI).join('')+`<div class=card><div class=h>Add block</div><div class=row style="flex-wrap:wrap">${Object.keys(NB).map(k=>`<button onclick="add('${k}')">+ ${BN[k]}</button>`).join('')}</div></div>`;
+const classicUI=()=>T('Message','content')+S.embeds.map(embedUI).join('')+`<button onclick="A('embeds',{title:'',url:'',description:'',color:'#5865f2',an:'',ai:'',img:'',th:'',ft:'',fields:[]})">+ Embed</button><div class=card><div class=h>Link buttons</div>${btnsUI('buttons')}</div>`+S.menus.map((m,i)=>`<div class=card>${hd('Dropdown menu '+(i+1),'menus',i)}${menuUI('menus.'+i)}</div>`).join('')+`<button onclick="A('menus',newMenu())">+ Dropdown menu</button>`;
+const pick=async v=>{const c=chs.find(c=>c.id==v);S.ch=v;S.forum=c?.type==15;S.tags=[];S.th='';S.threads=[];R();
+if(S.forum){const r=await api('/api/threads/'+v);if(r.ok){S.threads=await r.json();R()}}};
+const forumUI=()=>`<label>What to do in the forum</label><select onchange="S.fm=this.value;R()"><option value=new ${S.fm=='new'?'selected':''}>Create a new post</option><option value=exist ${S.fm=='exist'?'selected':''}>Write in an existing post</option></select>`+(S.fm=='new'?I('Post title','thread')+tagsUI():`<label>Post</label><select onchange="S.th=this.value;R()"><option value="">— choose a post —</option>${S.threads.map(t=>`<option value=${t.id} ${t.id==S.th?'selected':''}>${esc(t.name)}</option>`).join('')}</select>${I('…or enter the post ID manually','th')}`);
+const E=p=>`<div><label>Icon (emoji or server emoji)</label><input list=em value="${esc(get(p))}" oninput="set('${p}',this.value)" placeholder="Type an emoji or pick one"></div>`;
+const tagsUI=()=>{const c=chs.find(c=>c.id==S.ch);return(c?.tags||[]).length?'<label>Tags</label>'+c.tags.map(t=>`<label style="display:inline-flex;gap:4px;margin-right:10px"><input type=checkbox style="width:auto" ${S.tags.includes(t.id)?'checked':''} onchange="tg('${t.id}')">${esc(t.name)}</label>`).join(''):''};
+const tg=id=>{S.tags=S.tags.includes(id)?S.tags.filter(x=>x!=id):[...S.tags,id]};
+function R(){$('ed').innerHTML=toolsUI()+(S.edit?editBar():`<div class=card><label>Destination</label><select onchange="pick(this.value)"><option value="">— choose a channel or forum —</option>${chs.map(c=>`<option value=${c.id} ${c.id==S.ch?'selected':''}>${c.type==15?'[forum]':'#'} ${esc(c.name)}</option>`).join('')}</select>${I('…or enter a channel/thread ID manually','ch')}${S.forum?forumUI():''}${C('Allow mentions (@)','ping')}</div>`)+`
+<datalist id=em>${S.emojis.map(e=>`<option value="${esc('<'+(e.animated?'a':'')+':'+e.name+':'+e.id+'>')}">${esc(e.name)}</option>`).join('')}</datalist><div class=card><label>Mode</label><select onchange="S.mode=this.value;R()"><option value=v2 ${S.mode=='v2'?'selected':''}>Components V2 (containers, separators, sections)</option><option value=classic ${S.mode=='classic'?'selected':''}>Classic (text + embeds + buttons)</option></select></div>${S.mode=='v2'?v2UI():classicUI()}`;$('pb').textContent=S.edit?'Save changes':'Publish';pv()}
+
+const col=h=>parseInt((h||'#5865f2').slice(1),16);
+const emo=e=>{const m=/^<(a?):(\w+):(\d+)>$/.exec(e.trim());return m?{id:m[3],name:m[2],animated:!!m[1]}:{name:e.trim()}};
+const btn=b=>({type:2,style:5,url:b.url,...((b.label||!b.emoji)?{label:b.label||'Enlace'}:{}),...(b.emoji?{emoji:emo(b.emoji)}:{})});
+let MENUS=[];
+const mnu=m=>{const o=m.opts.filter(x=>x.label.trim()).slice(0,25);if(!o.length)return null;
+const id='m'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+MENUS.push({id,options:Object.fromEntries(o.map((x,i)=>{const r=x.r;return['o'+i,{content:r.content||'',priv:!!r.priv,embed:r.eon?{title:r.et||undefined,description:r.ed||undefined,color:col(r.ec),image:r.ei?{url:r.ei}:undefined,thumbnail:r.eth?{url:r.eth}:undefined,footer:r.ef?{text:r.ef}:undefined}:null}]}))});
+return{type:1,components:[{type:3,custom_id:id,placeholder:(m.ph||'').slice(0,150)||undefined,min_values:1,max_values:1,options:o.map((x,i)=>({label:x.label.slice(0,100),value:'o'+i,description:x.desc?x.desc.slice(0,100):undefined,...(x.emoji?{emoji:emo(x.emoji)}:{})}))}]}};
+function build(){MENUS=[];const am={allowed_mentions:S.ping?undefined:{parse:[]}};
+if(S.mode=='classic'){const rows=[];for(let i=0;i<S.buttons.length;i+=5)rows.push({type:1,components:S.buttons.slice(i,i+5).map(btn)});
+return{content:S.content,embeds:S.embeds.map(e=>({title:e.title||undefined,url:e.url||undefined,description:e.description||undefined,color:col(e.color),author:e.an?{name:e.an,icon_url:e.ai||undefined}:undefined,footer:e.ft?{text:e.ft}:undefined,image:e.img?{url:e.img}:undefined,thumbnail:e.th?{url:e.th}:undefined,fields:e.fields.filter(f=>f.name&&f.value)})),components:[...rows,...S.menus.map(mnu).filter(Boolean)].slice(0,5),...am}}
+const bl=S.blocks.map(b=>b.t=='text'?{type:10,content:b.content||' '}:b.t=='sep'?{type:14,divider:!!b.div,spacing:+b.sp}:b.t=='gal'?{type:12,items:b.items.filter(i=>i.url).map(i=>({media:{url:i.url},description:i.d||undefined}))}:b.t=='sec'?{type:9,components:[{type:10,content:b.content||' '}],accessory:b.acc=='th'?{type:11,media:{url:b.url}}:btn(b)}:b.t=='menu'?mnu(b):{type:1,components:b.btns.map(btn)}).filter(Boolean);
+return{flags:32768,components:S.box.on?[{type:17,accent_color:col(S.box.color),spoiler:!!S.box.spoiler,components:bl}]:bl,...am}}
+
+const bp=b=>`<span class=bt>${esc(b.emoji||'')} ${esc(b.label||'Enlace')} ↗</span>`;
+const emT=e=>{const m=/^<a?:(\w+):\d+>$/.exec((e||'').trim());return m?':'+m[1]+':':(e||'').trim()};
+const mpv=(m,p)=>`<div class=mn><select onchange="mrep(this,'${p}')"><option value="">${esc(m.ph||'Choose an option…')}</option>${m.opts.map((o,j)=>`<option value=${j}>${esc((emT(o.emoji)+' '+o.label).trim())}${o.desc?' — '+esc(o.desc):''}</option>`).join('')}</select><div class=mr style="display:none"></div></div>`;
+const mrep=(s,p)=>{const d=s.nextElementSibling;if(s.value===''){d.style.display='none';return}const r=get(p+'.opts')[+s.value].r;d.style.display='block';d.innerHTML=`<small>${r.priv?'Only visible to the person who selects':'Public reply'}</small><div>${md(r.content)}</div>`+(r.eon?`<div class=emb style="border-color:${r.ec}"><div><b>${esc(r.et)}</b></div><div>${md(r.ed)}</div>${r.eth?`<img src="${esc(r.eth)}" style="width:70px">`:''}${r.ei?`<img src="${esc(r.ei)}">`:''}<small>${esc(r.ef)}</small></div>`:'')};
+function pv(){let h='';
+if(S.mode=='classic')h=`<div>${md(S.content)}</div>`+S.embeds.map(e=>`<div class=emb style="border-color:${e.color}">${e.an?`<small>${esc(e.an)}</small>`:''}<div><b>${esc(e.title)}</b></div><div>${md(e.description)}</div><div class=fl>${e.fields.map(f=>`<div class=in><b>${esc(f.name)}</b><br>${md(f.value)}</div>`).join('')}</div>${e.th?`<img src="${U(e.th)}" style="width:70px">`:''}${e.img?`<img src="${U(e.img)}">`:''}<small>${esc(e.ft)}</small></div>`).join('')+`<div>${S.buttons.map(bp).join('')}</div>`+S.menus.map((m,i)=>mpv(m,'menus.'+i)).join('');
+else{const inner=S.blocks.map((b,bi)=>b.t=='text'?`<div>${md(b.content)}</div>`:b.t=='sep'?`<hr class="${b.div?'':'nd '}${b.sp==2?'s2':''}">`:b.t=='gal'?`<div class=gal>${b.items.filter(i=>i.url).map(i=>`<img src="${U(i.url)}">`).join('')}</div>`:b.t=='sec'?`<div class=sec><div>${md(b.content)}</div>${b.acc=='th'?(b.url?`<img src="${U(b.url)}">`:''):bp(b)}</div>`:b.t=='menu'?mpv(b,'blocks.'+bi):`<div>${b.btns.map(bp).join('')}</div>`).join('');
+h=S.box.on?`<div class="cont ${S.box.spoiler?'sp':''}" style="border-color:${S.box.color}">${inner}</div>`:inner}
+$('pv').innerHTML=h}
+
+const JH={'content-type':'application/json'};
+let TP=[],SN=[],tpSel='',snSel='';
+const snap=()=>JSON.parse(JSON.stringify({mode:S.mode,content:S.content,embeds:S.embeds,buttons:S.buttons,menus:S.menus,blocks:S.blocks,box:S.box,ping:S.ping}));
+const lab=()=>{const t=S.mode=='classic'?(S.content||S.embeds[0]?.title):S.blocks.find(b=>b.t=='text'||b.t=='sec')?.content;return String(t||'(no text)').replace(/[#*`]/g,'').trim().split('\n')[0].slice(0,60)};
+const fdt=t=>new Date(t).toLocaleString('en-GB',{dateStyle:'short',timeStyle:'short'});
+async function loadLists(){try{const[a,b]=await Promise.all([api('/api/templates'),api('/api/sent')]);if(a.ok)TP=await a.json();if(b.ok)SN=await b.json();R()}catch{}}
+const toolsUI=()=>`<div class=card><div class=h>Templates</div><div class=row><select onchange="tpSel=this.value"><option value="">— choose a template —</option>${TP.map(t=>`<option value=${t.id} ${t.id==tpSel?'selected':''}>${esc(t.name)}</option>`).join('')}</select><button onclick=tpLoad()>Load</button><button onclick=tpDel() title="Delete template">Delete</button><button onclick=tpSave()>Save current</button></div>
+<small>Templates also store the images you uploaded from your computer.</small>
+<div class=h style="margin-top:12px">Messages sent by the bot</div><div class=row><select onchange="snSel=this.value"><option value="">— choose a message to edit —</option>${SN.map(m=>`<option value=${m.id} ${m.id==snSel?'selected':''}>${esc(m.label)} · ${esc(m.channelName||'')} · ${fdt(m.ts)}</option>`).join('')}</select><button onclick=snLoad()>Edit</button><button onclick=snDel() title="Remove from list (does not delete the Discord message)">Remove</button></div></div>`;
+const editBar=()=>`<div class=card style="border:1px solid var(--b)"><div class=h>Editing a sent message <button onclick="S.edit=null;R()">Cancel editing</button></div><small>${esc(S.editLabel||'')}</small></div>`;
+const b64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=no;r.readAsDataURL(f)});
+async function tpSave(){const name=(prompt('Template name (if it already exists, it will be overwritten):')||'').trim();if(!name)return;
+const st=snap(),js=JSON.stringify(st),assets={};let lost=0;
+for(const n of Object.keys(files).filter(n=>js.includes('attachment://'+n))){try{let f=files[n].f;if(!f&&files[n].u){const bl=await (await fetch(files[n].u)).blob();f=new File([bl],n,{type:bl.type})}
+if(!f||!/^image\//.test(f.type))throw 0;assets[n]={type:f.type,data:await b64(f)}}catch{lost++}}
+const r=await api('/api/templates',{method:'POST',headers:JH,body:JSON.stringify({name,state:st,assets})});const j=await r.json().catch(()=>({}));
+if(!r.ok)return toast('Could not save the template: '+(j.error||'error'));tpSel=j.id;toast('Template saved'+(lost?` (${lost} image(s) could not be stored; use a URL instead)`:''));loadLists()}
+async function tpLoad(){if(!tpSel)return toast('Choose a template');const r=await api('/api/templates/'+tpSel);if(!r.ok)return toast('Template not found');const t=await r.json();
+files={};for(const[n,a]of Object.entries(t.assets||{})){const bin=atob(a.data),u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);const f=new File([u8],n,{type:a.type});files[n]={f,u:URL.createObjectURL(f)}}
+Object.assign(S,JSON.parse(JSON.stringify(t.state)));S.edit=null;R();toast('Template loaded')}
+async function tpDel(){if(!tpSel||!confirm('Delete this template?'))return;await api('/api/templates/'+tpSel,{method:'DELETE'});tpSel='';loadLists()}
+async function snLoad(){if(!snSel)return toast('Choose a message');const r=await api('/api/sent/'+snSel),j=await r.json();if(!r.ok)return toast(j.error||'Error');
+if(j.gone)return toast('That message no longer exists in Discord. Remove it from the list.');
+files={};(j.attachments||[]).forEach(a=>files[a.filename]={u:a.url});Object.assign(S,JSON.parse(JSON.stringify(j.state)));S.edit=j.id;S.editLabel=`${j.label} · ${j.channelName||''} · ${fdt(j.ts)}`;R();toast('Message loaded: edit it and press "Save changes"')}
+async function snDel(){if(!snSel||!confirm('Remove from the list? (the Discord message is not deleted)'))return;await api('/api/sent/'+snSel,{method:'DELETE'});if(S.edit==snSel)S.edit=null;snSel='';loadLists()}
+async function send(){const edit=S.edit,ex=S.forum&&S.fm=='exist',ch=ex?S.th:S.ch;
+if(!edit){if(!ch)return toast('Choose a destination');if(S.forum&&!ex&&!S.thread)return toast('Enter a title for the post')}
+const body=build(),js=JSON.stringify(body),fd=new FormData(),cn=chs.find(c=>c.id==S.ch)?.name;
+fd.append('payload',JSON.stringify({channelId:ch,forum:!edit&&S.forum&&!ex,threadName:S.thread,tags:S.tags,body,menus:MENUS,state:snap(),channelName:cn?(S.forum?'[forum] ':'#')+cn:''}));
+Object.keys(files).filter(n=>files[n].f&&js.includes('attachment://'+n)).forEach(n=>fd.append('files',new File([files[n].f],n)));
+const r=await api(edit?'/api/edit/'+edit:'/api/send',{method:'POST',body:fd}),j=await r.json().catch(()=>({}));
+toast(r.ok?(edit?'Message edited':'Published'):'Error: '+(j.message||j.error)+' '+JSON.stringify(j.errors||''));if(r.ok){if(edit)S.editLabel=lab();loadLists()}}
+async function init(){const r=await api('/api/channels');const j=await r.json();chs=Array.isArray(j)?j:[];if(!Array.isArray(j))toast(j.message||j.error);R();loadLists();api('/api/emojis').then(r=>r.json()).then(e=>{S.emojis=e;R()}).catch(()=>{})}
+if(IB.guard()){IB.topbar('Publish texts');R();init()}
+</script></body></html>
